@@ -1,6 +1,8 @@
 # CarND-Controls-PID
 Self-Driving Car Engineer Nanodegree Program
 
+![](https://i.imgur.com/LVQ7JP5.jpg)
+
 ---
 
 ## Dependencies
@@ -37,18 +39,6 @@ Fellow students have put together a guide to Windows set-up for the project [her
 
 Tips for setting up your environment can be found [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
 
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
 
 ## Project Instructions and Rubric
 
@@ -59,40 +49,121 @@ More information is only accessible by people who are already enrolled in Term 2
 of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/e8235395-22dd-4b87-88e0-d108c5e5bbf4/concepts/6a4d8d42-6a04-4aa6-b284-1697c0fd6562)
 for instructions and the project rubric.
 
-## Hints!
 
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
+## Project overview
 
-## Call for IDE Profiles Pull Requests
+## Introduce of the PID controller ##
 
-Help your fellow students!
+ 
+PID control is a technique to correct vehicle steering Angle, throttle threshold and other behaviors according to loss components of P(proportion), I(integral) and D(differential) given vehicle crossing trajectory error.
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
+In the Udacity automotive simulator, the CTE value is read from the data message sent by the simulator, and the PID controller updates the error value and predicts the steering angle based on the total error.
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
+![](https://i.imgur.com/U1zBO9C.png)
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
+![](https://i.imgur.com/pZFMH6o.png)
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
+PID formula and process (image from Wikipedia)
 
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
+P : Proportional — This item applies to correcting steering wheel scale errors.If we get too far from the target, we turn the wheel in the other direction.
 
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+D : Derivative —The purpose of item D is to suppress this oscillation effect by adding a damping term to the formula.This term is the change in error.The PD controller find that the error is reduced and slightly reduces the angle to approache the smooth path.
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+I : Integral — The term of I is used to correct a mechanical error that causes us to turn the wheel more or less strong depending on the vehicle to stay upright. So we add a last term to penalize the sum of cumulative errors. The Twiddle PID curve corresponds to the use of an algorithm to find the coefficients more rapidly and thus to converge more quickly towards the reference trajectory.
 
+![](https://i.imgur.com/5N7rJnz.png)
+
+The PID controller is the simplest and most common in the world. It has the advantage of being implemented quickly and operating in simple situations. But it is impossible to model the physics of the vehicle. When we drive, we naturally adjust our maneuvers according to the size, mass and dynamics of the vehicle. A PID controller can not do it.
+
+## Implementation of the PID controller ##
+
+1. Update PID
+
+		PID::PID() {}
+		
+		PID::~PID() {}
+		
+		void PID::Init(double Kp, double Ki, double Kd) {
+		    /**
+		   * TODO: Initialize PID coefficients (and errors, if needed)
+		   */
+		
+		    this->Kp = Kp;
+		    this->Ki = Ki;
+		    this->Kd = Kd;
+		    this->p_error = 0.0;
+		    this->i_error = 0.0;
+		    this->d_error = 0.0;
+		    this->prev_cte=0.0;
+		
+		}
+		
+		void PID::UpdateError(double cte) {
+		    /**
+		  * TODO: Update PID errors based on cte.
+		  */
+		    this->p_error=cte;
+		    this->d_error=cte-this->prev_cte;
+		    this->i_error+=cte;
+		    this->prev_cte=cte;
+		
+		}
+		
+		
+		double PID::TotalError() {
+		    /**
+		  * TODO: Calculate and return the steer-angle
+		  */
+		    double steer_angle=-this->Kp * this->p_error-this->Kd*this->d_error-this->Ki*this->i_error;
+		    return steer_angle;
+		}
+
+2. manual turnning 
+
+The most important part of the project is to tune the hyperparameters. This can be done by different methods such as manual tuning, Zieglor-Nichols tuning, SGD, Twiddle. I have done manual tuning. After that I have used twiddle to optimize the parameter-combination. The following table summerizes the effect of each parameter on the system.
+
+![](https://i.imgur.com/W1hTxGm.png)
+
+The result of manual turning is {0.15000, 0.00100,1.70000}
+
+3. Twiddle
+
+The twist algorithm is a correct parameter selection technique and can minimize the error.The key idea is to adjust each parameter by increasing and decreasing the value of each parameter, and to see how the error changes.If either direction is conducive to error minimization, the change rate in that direction should be amplified; otherwise, the change rate should be reduced.
+
+Pseudocode for implementing the Twiddle algorithm is as follows:
+
+	function(tol=0.2) {
+		p = [0, 0, 0]
+		dp = [1, 1, 1]
+		best_error = move_robot()
+		loop untill sum(dp) > tol
+		        loop until the length of p using i
+					p[i] += dp[i]
+					error = move_robot()
+	
+					if err < best_err
+					        best_err = err
+							dp[i] *= 1.1
+					else
+						p[i] -= 2 * dp[i]
+						error = move_robot()
+	
+						if err < best_err
+					        best_err = err
+							dp[i] *= 1.1
+						else
+							p[i] += dp[i]
+							dp[i] *= 0.9
+		return p
+	}
+
+After each run of the 600-point loop, the PID error is updated to make the twiddle algorithm better finetuned.
+![](https://i.imgur.com/8AYhz2L.png)
+
+The result of twiddle turning is {0.155, 0.0011, 1.691}
+
+## Discussion ##
+
+1. The less tolerance is set, the more simulator loops are needed and the more time is required. Considering the time factor, I didn't set the tolerance to 0.1, which could be lower than 0.001, but udacity's GPU doesn't have enough usable time. Is there any way to save time？
+
+2. In the future, the speed can also be added to PID control.
